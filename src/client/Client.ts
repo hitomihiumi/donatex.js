@@ -1,93 +1,72 @@
 import { EventEmitter } from 'events';
 import { REST } from '../rest/REST';
+import { GatewayConnection } from '../gateway/GatewayConnection';
 import { DonationManager } from '../managers/DonationManager';
 import { ProfileManager } from '../managers/ProfileManager';
-import { GatewayConnection } from '../gateway/GatewayConnection';
+import { MusicManager } from '../managers/MusicManager';
+import { WebhookManager } from '../managers/WebhookManager';
+import { Donation } from '../structures/Donation';
+import { Profile } from '../structures/Profile';
 
-/**
- * Options for the DonateX client.
- */
-export interface ClientOptions {
-    /**
-     * The API token used for authentication.
-     */
-    token: string;
+export declare interface Client {
+    on(event: 'ready', listener: () => void): this;
+    on(event: 'DonationCreated', listener: (donation: Donation) => void): this;
+    on(event: 'error', listener: (error: Error) => void): this;
+    on(event: 'disconnected', listener: () => void): this;
 }
 
-/**
- * The main hub for interacting with the donatex.gg API.
- */
 export class Client extends EventEmitter {
-    /**
-     * The REST manager of the client.
-     */
     public readonly rest: REST;
+    public readonly ws: GatewayConnection;
 
-    /**
-     * The donation manager for the client.
-     */
     public readonly donations: DonationManager;
-
-    /**
-     * The profile manager for the client.
-     */
     public readonly profiles: ProfileManager;
+    public readonly music: MusicManager;
+    public readonly webhooks: WebhookManager;
 
-    /**
-     * Managed realtime gateway connection.
-     */
-    public readonly gateway: GatewayConnection;
+    public user: Profile | null = null;
 
-    /**
-     * The token used for authenticating with the API.
-     */
-    public token!: string | null;
+    private token: string | null = null;
 
-    /**
-     * @param options - Options for the client.
-     */
-    constructor(options?: Partial<ClientOptions>) {
+    constructor() {
         super();
 
-        // Define token as non-enumerable so it doesn't show up in console logs or object iterations
-        Object.defineProperty(this, 'token', {
-            writable: true,
-            enumerable: false,
-            configurable: true,
-            value: null
-        });
+        this.rest = new REST();
+        this.ws = new GatewayConnection();
 
-        this.rest = new REST(this);
         this.donations = new DonationManager(this);
         this.profiles = new ProfileManager(this);
-        this.gateway = new GatewayConnection(this);
+        this.music = new MusicManager(this);
+        this.webhooks = new WebhookManager(this);
 
-        if (options?.token) {
-            this.token = options.token;
+        this.ws.on('ready', () => this.emit('ready'));
+        this.ws.on('error', (err: Error) => this.emit('error', err));
+        this.ws.on('disconnected', () => this.emit('disconnected'));
+
+        this.ws.on('DonationCreated', (rawData: any) => {
+            const donation = new Donation(this, rawData);
+            this.emit('DonationCreated', donation);
+        });
+    }
+
+    public async login(token: string): Promise<string> {
+        this.token = token;
+        this.rest.setToken(token);
+
+        try {
+            this.user = await this.profiles.fetch();
+
+            await this.ws.connect(token);
+
+            return this.token;
+        } catch (err) {
+            throw new Error(`[DonateX Client] Failed to login: ${err}`);
         }
     }
 
-    /**
-     * Logs in to the donatex.gg API.
-     * 
-     * @param token - The token to login with.
-     * @returns A promise that resolves to the token when login is successful.
-     */
-    public async login(token?: string): Promise<string> {
-        if (!token && !this.token) {
-            throw new Error('TOKEN_MISSING: A token is required to login.');
-        }
-
-        this.token = token || this.token;
-        this.rest.setToken(this.token as string);
-
-        // Fetch profile to verify token
-        await this.profiles.fetch();
-
-        // Connect realtime gateway
-        await this.gateway.connect();
-
-        this.emit('ready', this);
-        return this.token as string;
+    public async destroy(): Promise<void> {
+        await this.ws.disconnect();
+        this.token = null;
+        this.user = null;
     }
 }

@@ -1,70 +1,46 @@
-import * as signalR from '@microsoft/signalr';
-import { Client } from '../client/Client';
-import { Donation } from '../structures/Donation';
+import { HubConnectionBuilder, LogLevel, HubConnection } from '@microsoft/signalr';
+import { EventEmitter } from 'events';
+import { RawDonationData } from '../structures/Donation';
 
-/**
- * Manages the real-time Gateway connection to the donatex.gg API using SignalR.
- */
-export class GatewayConnection {
-    /**
-     * The client that instantiated this connection.
-     */
-    public readonly client: Client;
+export declare interface GatewayConnection {
+    on(event: 'ready', listener: () => void): this;
+    on(event: 'error', listener: (error: Error) => void): this;
+    on(event: 'disconnected', listener: () => void): this;
+    on(event: 'DonationCreated', listener: (donationData: RawDonationData) => void): this;
+}
 
-    /**
-     * The internal SignalR HubConnection.
-     */
-    private connection: signalR.HubConnection | null = null;
+export class GatewayConnection extends EventEmitter {
+    private connection: HubConnection | null = null;
 
-    /**
-     * The URL of the donation hub.
-     */
-    private readonly hubUrl: string = 'https://donatex.gg/api/public-donations-hub';
-
-    /**
-     * @param client - The instantiating client.
-     */
-    constructor(client: Client) {
-        this.client = client;
+    constructor() {
+        super();
     }
 
-    /**
-     * Connects to the donatex.gg Real-Time Gateway.
-     *
-     * @returns A promise that resolves when the connection is strictly established.
-     */
-    public async connect(): Promise<void> {
-        if (!this.client.token) {
-            throw new Error('TOKEN_MISSING: Cannot connect to internal gateway without a token.');
-        }
-
-        this.connection = new signalR.HubConnectionBuilder()
-            .withUrl(this.hubUrl, {
-                accessTokenFactory: () => this.client.token as string
-            })
+    public async connect(token: string): Promise<void> {
+        this.connection = new HubConnectionBuilder()
+            .withUrl(`https://donatex.gg/api/public-donations-hub?access_token=${encodeURIComponent(token)}`)
             .withAutomaticReconnect()
+            .configureLogging(LogLevel.Information)
             .build();
 
-        this.connection.on('DonationCreated', (data: any) => {
-            const donation = new Donation(this.client, data);
-            this.client.emit('donationCreate', donation);
+        this.connection.on('DonationCreated', (donationData: RawDonationData) => {
+            this.emit('DonationCreated', donationData);
         });
 
         try {
             await this.connection.start();
-            this.client.emit('gatewayReady');
-        } catch (err) {
-             throw new Error(`GATEWAY_FAILED: Failed to connect to Gateway - ${err}`);
+            this.emit('ready');
+        } catch (error) {
+            this.emit('error', error as Error);
+            throw error;
         }
     }
 
-    /**
-     * Disconnects from the Gateway.
-     */
     public async disconnect(): Promise<void> {
         if (this.connection) {
             await this.connection.stop();
+            this.connection = null;
+            this.emit('disconnected');
         }
     }
 }
-

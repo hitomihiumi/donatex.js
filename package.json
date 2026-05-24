@@ -1,10 +1,11 @@
 {
   "name": "@hitomihiumi/donatex.js",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "donatex",
@@ -17,8 +18,7 @@
   "license": "MIT",
   "description": "donatex.js is a library that allows you to easily interact with the DonateX API",
   "dependencies": {
-    "@microsoft/signalr": "^10.0.0",
-    "axios": "^1.15.1"
+    "@microsoft/signalr": "^10.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

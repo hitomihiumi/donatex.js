@@ -1,15 +1,17 @@
 import { Client } from '../src';
 const client = new Client();
 
-require('dotenv').config();
-
 client.on('ready', () => {
-    console.log(`Connected with profile: ${client.profiles.current?.username}`);
+    console.log(`Login as ${client.user!.username}!`);
 });
 
-client.on('donationCreate', (donation) => {
-    console.log(donation);
+client.on('DonationCreated', async (donation) => {
+    console.log(`New donation from ${donation.username}: ${donation.amount} ${donation.currency} ${donation.message}`);
+
+    if (donation.message.includes("ban-word")) {
+        await donation.skip();
+        console.log('Donation was skipped');
+    }
 });
 
-
-client.login(process.env.DONATION_TOKEN);
+client.login(process.env.TEST_TOKEN!);

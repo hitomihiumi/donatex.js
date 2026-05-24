@@ -1,58 +1,37 @@
-import { Client } from '../client/Client';
-import { Donation } from '../structures/Donation';
+import { BaseManager } from './BaseManager';
+import { Donation, RawDonationData } from '../structures/Donation';
+import { SkipDonationResponse } from '../types';
 
-/**
- * Options for fetching a list of donations.
- */
-export interface FetchDonationOptions {
-    skip?: number;
-    take?: number;
+export interface FetchDonationsOptions {
+    skip: number;
+    take: number;
     query?: string;
     hideTest?: boolean;
 }
 
-/**
- * Manages API methods for donations.
- */
-export class DonationManager {
-    /**
-     * The client that instantiated this Manager.
-     */
-    public readonly client: Client;
-
-    /**
-     * @param client - The instantiating client.
-     */
-    constructor(client: Client) {
-        this.client = client;
-    }
-
-    /**
-     * Fetches a list of donations.
-     * 
-     * @param options - Pagination options for fetching donations.
-     * @returns A promise that resolves with an array of Donation objects.
-     */
-    public async fetch(options?: FetchDonationOptions): Promise<Array<Donation>> {
-        const params: Record<string, any> = {
-            skip: 0,
-            take: 100,
-        };
-        if (options?.skip) params.skip = options.skip;
-        if (options?.take) params.take = options.take;
-        if (options?.query) params.query = options.query;
-        if (options?.hideTest) params.hideTest = options.hideTest;
-
-        const response = await this.client.rest.get('/donations', params);
-        
-        // Handle paginated response wrapper if necessary
-        const items = response.data || response;
-        
-        if (Array.isArray(items)) {
-            return items.map((data: any) => new Donation(this.client, data));
-        }
-        
-        return [];
-    }
+export interface TestDonationOptions {
+    username: string;
+    message?: string;
+    amount: number;
+    currency: string;
+    withAIResponse?: boolean;
 }
 
+export class DonationManager extends BaseManager {
+
+    async fetch(options: FetchDonationsOptions): Promise<Donation[]> {
+        const data = await this.client.rest.get<RawDonationData[]>('/v1/donations', options);
+        return data.map(d => new Donation(this.client, d));
+    }
+
+    async sendTest(data: TestDonationOptions): Promise<void> {
+        await this.client.rest.post('/v1/test-donation', data);
+    }
+
+    async skip(id?: string): Promise<SkipDonationResponse | void> {
+        if (id) {
+            return await this.client.rest.post(`/v1/donations/${id}/skip`);
+        }
+        return await this.client.rest.post<SkipDonationResponse>('/v1/donations/skip-current');
+    }
+}

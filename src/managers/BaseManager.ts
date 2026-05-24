@@ -1,11 +1,9 @@
 import { Client } from '../client/Client';
 
-export abstract class Base {
+export abstract class BaseManager {
     public readonly client!: Client;
-    public id: string;
 
-    constructor(client: Client, data: any) {
+    constructor(client: Client) {
         Object.defineProperty(this, 'client', { value: client });
-        this.id = data.id;
     }
 }

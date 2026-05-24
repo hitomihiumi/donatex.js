@@ -1,41 +1,11 @@
-import { Client } from '../client/Client';
+import { BaseManager } from './BaseManager';
 import { Profile } from '../structures/Profile';
+import { IProfile } from '../types';
 
-/**
- * Manages API methods for user profiles.
- */
-export class ProfileManager {
-    /**
-     * The client that instantiated this Manager.
-     */
-    public readonly client: Client;
+export class ProfileManager extends BaseManager {
 
-    /**
-     * The cached profile of the currently authenticated user.
-     */
-    public current: Profile | null = null;
-
-    /**
-     * @param client - The instantiating client.
-     */
-    constructor(client: Client) {
-        this.client = client;
-    }
-
-    /**
-     * Fetches the current user's profile from the API.
-     *
-     * @returns A promise that resolves with the Profile object.
-     */
-    public async fetch(): Promise<Profile> {
-        // According to common API standards, endpoint is likely /user or /profile
-        // Please adjust to match donatex.gg API exactly if needed.
-        const response = await this.client.rest.get('/user/me');
-        // If data is wrapped in another object (e.g. { data: {...} }), handle it accordingly
-        const data = response.data || response;
-        const profile = new Profile(this.client, data);
-        this.current = profile;
-        return profile;
+    async fetch(): Promise<Profile> {
+        const data = await this.client.rest.get<IProfile>('/v1/user/me');
+        return new Profile(this.client, data);
     }
 }
-

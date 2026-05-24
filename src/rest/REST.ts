@@ -1,87 +1,57 @@
-import { Client } from '../client/Client';
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
-
-/**
- * A manager for handling REST API requests to donatex.gg.
- */
 export class REST {
-    /**
-     * The client that instantiated this REST manager.
-     */
-    public readonly client: Client;
+    private token: string | null = null;
+    private baseURL = 'https://donatex.gg/api';
 
-    /**
-     * The axios instance used for making requests.
-     */
-    private readonly requestManager: AxiosInstance;
-
-    /**
-     * @param client - The instantiating client.
-     */
-    constructor(client: Client) {
-        this.client = client;
-        this.requestManager = axios.create({
-            baseURL: 'https://donatex.gg/api/v1', // Using /api/v1 as a probable endpoint base
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
+    constructor(token?: string) {
+        if (token) this.token = token;
     }
 
-    /**
-     * Sets the authorization token for future requests.
-     *
-     * @param token - The token to use.
-     */
     public setToken(token: string): void {
-        this.requestManager.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        this.token = token;
     }
 
-    /**
-     * Makes a GET request.
-     *
-     * @param url - The URL to request.
-     * @param params - Optional query parameters.
-     * @returns A promise resolving to the response data.
-     */
-    public async get<T = any>(url: string, params?: Record<string, any>): Promise<T> {
-        const response: AxiosResponse<T> = await this.requestManager.get(url, { params });
-        return response.data;
+    async request<T>(method: string, endpoint: string, data?: any): Promise<T> {
+        if (!this.token) throw new Error('[DonateX API] Token is not provided. Call client.login() first.');
+
+        const url = new URL(`${this.baseURL}${endpoint}`);
+
+        if (method === 'GET' && data) {
+            Object.keys(data).forEach(key => {
+                if (data[key] !== undefined && data[key] !== null) {
+                    url.searchParams.append(key, String(data[key]));
+                }
+            });
+        }
+
+        const headers: Record<string, string> = {
+            'Authorization': `Bearer ${this.token}`,
+            'Content-Type': 'application/json'
+        };
+
+        const options: RequestInit = {
+            method,
+            headers,
+        };
+
+        if (method !== 'GET' && data) {
+            options.body = JSON.stringify(data);
+        }
+
+        const response = await fetch(url.toString(), options);
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => response.statusText);
+            throw new Error(`[DonateX API Error] ${response.status} ${response.statusText}: ${errorText}`);
+        }
+
+        if (response.status === 204) {
+            return {} as T;
+        }
+
+        return await response.json() as T;
     }
 
-    /**
-     * Makes a POST request.
-     *
-     * @param url - The URL to request.
-     * @param data - The data to send.
-     * @returns A promise resolving to the response data.
-     */
-    public async post<T = any>(url: string, data?: any): Promise<T> {
-        const response: AxiosResponse<T> = await this.requestManager.post(url, data);
-        return response.data;
-    }
-
-    /**
-     * Makes a PUT request.
-     *
-     * @param url - The URL to request.
-     * @param data - The data to send.
-     * @returns A promise resolving to the response data.
-     */
-    public async put<T = any>(url: string, data?: any): Promise<T> {
-        const response: AxiosResponse<T> = await this.requestManager.put(url, data);
-        return response.data;
-    }
-
-    /**
-     * Makes a DELETE request.
-     *
-     * @param url - The URL to request.
-     * @returns A promise resolving to the response data.
-     */
-    public async delete<T = any>(url: string): Promise<T> {
-        const response: AxiosResponse<T> = await this.requestManager.delete(url);
-        return response.data;
-    }
+    get<T>(endpoint: string, query?: any) { return this.request<T>('GET', endpoint, query); }
+    post<T>(endpoint: string, body?: any) { return this.request<T>('POST', endpoint, body); }
+    delete<T>(endpoint: string) { return this.request<T>('DELETE', endpoint); }
 }
-
