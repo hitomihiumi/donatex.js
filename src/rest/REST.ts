@@ -1,8 +1,16 @@
 export class REST {
-    private token: string | null = null;
+    private token!: string | null;
     private baseURL = 'https://donatex.gg/api';
 
     constructor(token?: string) {
+
+        Object.defineProperty(this, 'token', {
+            writable: true,
+            enumerable: false,
+            configurable: true,
+            value: null
+        });
+
         if (token) this.token = token;
     }
 

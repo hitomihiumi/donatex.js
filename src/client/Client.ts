@@ -26,10 +26,17 @@ export class Client extends EventEmitter {
 
     public user: Profile | null = null;
 
-    private token: string | null = null;
+    private token!: string | null;
 
     constructor() {
         super();
+
+        Object.defineProperty(this, 'token', {
+            writable: true,
+            enumerable: false,
+            configurable: true,
+            value: null
+        });
 
         this.rest = new REST();
         this.ws = new GatewayConnection();
